@@ -412,7 +412,7 @@
 
     window.addEventListener("firebase-cc-ready", () => {
       const db = window.cloudDB;
-      const { collection, onSnapshot, query, orderBy, limit } = window.firestoreMethods;
+      const { collection, onSnapshot, doc } = window.firestoreMethods;
 
       // Cargar Clientes
       onSnapshot(collection(db, "clientes"), (snap) => {
@@ -451,7 +451,7 @@
       });
 
       // Cargar Configuración de Precios desde la nube
-      onSnapshot(doc(db, "configuracion", "precios"), (docSnap) => {
+      onSnapshot(window.firestoreMethods.doc(db, "configuracion", "precios"), (docSnap) => {
         if(docSnap.exists()) {
           const data = docSnap.data();
           if(data.preciosBase) preciosBase = data.preciosBase;
