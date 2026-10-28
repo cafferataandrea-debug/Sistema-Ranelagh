@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ranelagh Construcciones S.A. - Remitos Preimpresos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- jsPDF para generación idéntica del PDF (Formato 59.41 x 42 cm / A2 Landscape de Logisvial) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, getDoc, deleteDoc, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwZA4iI0hZ2ZBMpWJW3Li6VRxEb331gwg",
+      authDomain: "remitos-ranelagh.firebaseapp.com",
+      projectId: "remitos-ranelagh",
+      storageBucket: "remitos-ranelagh.firebasestorage.app",
+      messagingSenderId: "634992173577",
+      appId: "1:634992173577:web:ff17ac13ca8e54bc9d4ed8"
+    };
+
+    let db;
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      window.cloudDB = db;
+      window.firestoreMethods = { collection, addDoc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, getDoc, deleteDoc, updateDoc, doc };
+      window.dispatchEvent(new Event("firebase-ready"));
+    } catch(err) {
+      console.warn("Error iniciando Firebase:", err);
+    }
+  </script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
+
+  <nav class="bg-slate-900 text-white px-6 py-4 flex flex-wrap justify-between items-center shadow no-print">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded bg-cyan-700 font-serif font-black flex items-center justify-center text-xl">R</div>
+      <div>
+        <h1 class="font-bold text-lg leading-tight">Ranelagh Construcciones S.A.</h1>
+        <p class="text-xs text-slate-400">Dr. Alberto Sabin Nº 2863 - C.U.I.T. 30-58301375-9</p>
+      </div>
+      <span class="bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs px-2.5 py-0.5 rounded font-bold uppercase tracking-wider ml-2">Remito Preimpreso</span>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div id="cloud-indicator" class="flex items-center gap-2 text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-emerald-300 font-semibold">Nube Conectada (Tiempo Real)</span>
+      </div>
+      <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700 text-sm">
+        <button onclick="switchTab('emitir')" id="tab-emitir" class="px-4 py-1.5 rounded font-semibold bg-cyan-700 text-white">Nuevo Remito</button>
+        <button onclick="switchTab('historial')" id="tab-historial" class="px-4 py-1.5 rounded font-semibold text-slate-300 hover:text-white">Historial <span id="badge-count" class="ml-1 bg-slate-700 text-xs px-2 py-0.5 rounded-full">0</span></button>
+        <button onclick="switchTab('maestros')" id="tab-maestros" class="px-4 py-1.5 rounded font-semibold text-slate-300 hover:text-white">Precargas & Maestros</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- PESTAÑA 1: NUEVO REMITO -->
+  <main id="view-emitir" class="max-w-6xl mx-auto p-6 no-print">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+      <div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-wrap gap-4">
+        <div>
+          <h2 class="font-bold text-slate-800 text-lg">Emisión de Remito Sobre Formulario Continuo</h2>
+          <p class="text-xs text-slate-500">Genera el PDF con las coordenadas milimétricas de Logisvial (59.41 × 42 cm) para calzar en los 3 cuerpos.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="text-xs font-semibold text-slate-600">Número Impreso en Papel:</label>
+          <input type="text" id="remito-numero" value="00105001" placeholder="Ej: 00105001" class="border border-slate-300 rounded px-3 py-1 text-sm font-mono font-bold w-36 text-center text-slate-900 focus:ring-2 focus:ring-cyan-600 outline-none">
+          <input type="date" id="remito-fecha" class="border border-slate-300 rounded px-3 py-1 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-cyan-600 outline-none">
+        </div>
+      </div>
+
+      <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- DESTINATARIO -->
+        <div class="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-cyan-600"></span> Señor (es) / Cliente
+            </h3>
+            <div class="relative w-64">
+              <input type="text" id="search-cliente" oninput="filtrarListaDesplegable('cliente', this.value)" onfocus="filtrarListaDesplegable('cliente', this.value)" placeholder="🔍 Buscar cliente por nombre..." class="text-xs border border-cyan-300 rounded px-2.5 py-1.5 w-full bg-white text-cyan-900 font-medium outline-none focus:ring-2 focus:ring-cyan-600">
+              <div id="dropdown-cliente" class="hidden absolute left-0 right-0 top-8 bg-white border border-slate-300 rounded shadow-xl max-h-48 overflow-y-auto z-30 text-xs divide-y divide-slate-100"></div>
+            </div>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div>
+              <label class="text-xs text-slate-500 block">Razón Social (Señor/es):</label>
+              <input type="text" id="cli-razon" placeholder="Nombre de la empresa o cliente" class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-sm uppercase font-semibold">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-slate-500 block">Localidad:</label>
+                <input type="text" id="cli-localidad" placeholder="Ej: Ranelagh / Berazategui" class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-sm">
+              </div>
+              <div>
+                <label class="text-xs text-slate-500 block">C.U.I.T. N°:</label>
+                <input type="text" id="cli-cuit" placeholder="30-XXXXXXXX-X" class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-sm font-mono">
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 block">Domicilio:</label>
+              <input type="text" id="cli-domicilio" placeholder="Calle y número de entrega u obra" class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-sm">
+            </div>
+          </div>
+        </div>
+
+        <!-- TRANSPORTE -->
+        <div class="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-blue-600"></span> Transporte / Patente
+            </h3>
+            <div class="relative w-64">
+              <input type="text" id="search-patente" oninput="filtrarListaDesplegable('patente', this.value)" onfocus="filtrarListaDesplegable('patente', this.value)" placeholder="🔍 Escribe patente o fletero..." class="text-xs border border-blue-300 rounded px-2.5 py-1.5 w-full bg-white text-blue-900 font-medium outline-none focus:ring-2 focus:ring-blue-600">
+              <div id="dropdown-patente" class="hidden absolute left-0 right-0 top-8 bg-white border border-slate-300 rounded shadow-xl max-h-48 overflow-y-auto z-30 text-xs divide-y divide-slate-100"></div>
+            </div>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-slate-500 block">Patente (Camión/Batea):</label>
+                <input type="text" id="tra-patente" placeholder="Ej: AF 123 CD" class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-sm font-mono font-bold uppercase">
+              </div>
+              <div>
+                <label class="text-xs text-slate-500 block">C.U.I.T. Fletero:</label>
+                <input type="text" id="tra-cuit" placeholder="20-XXXXXXXX-X" class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-sm font-mono">
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 block">Transportista (Razón Social o Chofer):</label>
+              <input type="text" id="tra-nombre" placeholder="Nombre de la empresa de transporte o chofer" class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-sm uppercase">
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 block">Domicilio Fletero:</label>
+              <input type="text" id="tra-domicilio" placeholder="Domicilio del transportista" class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-sm">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DETALLE MATERIALES -->
+      <div class="px-6 pb-6">
+        <div class="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+          <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+            <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-600"></span> Mercadería / Materiales
+            </h3>
+            <div class="flex items-center gap-2">
+              <div class="relative w-64">
+                <input type="text" id="search-material" oninput="filtrarListaDesplegable('material', this.value)" onfocus="filtrarListaDesplegable('material', this.value)" placeholder="🔍 Escribe material a insertar..." class="text-xs border border-emerald-300 rounded px-2.5 py-1.5 w-full bg-white text-emerald-900 font-medium outline-none focus:ring-2 focus:ring-emerald-600">
+                <div id="dropdown-material" class="hidden absolute left-0 right-0 top-8 bg-white border border-slate-300 rounded shadow-xl max-h-48 overflow-y-auto z-30 text-xs divide-y divide-slate-100"></div>
+              </div>
+              <button onclick="agregarFilaItem()" class="text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-3 py-1.5 rounded">+ Agregar Renglón</button>
+            </div>
+          </div>
+          <table class="w-full text-left text-sm">
+            <thead>
+              <tr class="text-xs text-slate-500 border-b border-slate-200">
+                <th class="py-2 w-28">CANTIDAD</th>
+                <th class="py-2 w-28">UNIDAD</th>
+                <th class="py-2">MATERIAL / DESCRIPCIÓN</th>
+                <th class="py-2 w-12 text-center"></th>
+              </tr>
+            </thead>
+            <tbody id="items-tbody">
+              <tr class="border-b border-slate-100">
+                <td class="py-1.5 pr-2"><input type="number" step="any" value="30" class="item-cant w-full border border-slate-300 rounded px-2 py-1 text-sm font-semibold"></td>
+                <td class="py-1.5 pr-2"><input type="text" value="m3" class="item-unidad w-full border border-slate-300 rounded px-2 py-1 text-sm"></td>
+                <td class="py-1.5 pr-2"><input type="text" value="Tosca para relleno y compactación" class="item-desc w-full border border-slate-300 rounded px-2 py-1 text-sm uppercase"></td>
+                <td class="py-1.5 text-center"><button onclick="eliminarFila(this)" class="text-slate-400 hover:text-rose-600 font-bold">×</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="mt-4">
+            <label class="text-xs text-slate-500 block">OBSERVACIONES:</label>
+            <input type="text" id="remito-obs" placeholder="Ej: Obra Autopista Km 38 / Retira con batea" class="w-full border border-slate-300 rounded px-3 py-1.5 text-sm uppercase">
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTONES ACCIÓN Y CALIBRACIÓN -->
+      <div class="bg-slate-50 border-t border-slate-200 px-6 py-4 flex justify-between items-center flex-wrap gap-4">
+        <div class="flex items-center gap-3">
+          <label class="text-xs font-semibold text-slate-600">Calibración Offset PDF:</label>
+          <span class="text-xs text-slate-500">Horizontal (X): <input type="number" id="offset-x" value="0" step="1" class="w-14 border rounded px-1.5 py-0.5 text-center font-mono"> mm</span>
+          <span class="text-xs text-slate-500">Vertical (Y): <input type="number" id="offset-y" value="0" step="1" class="w-14 border rounded px-1.5 py-0.5 text-center font-mono"> mm</span>
+        </div>
+        <div class="flex gap-3">
+          <button id="btn-guardar-solo" onclick="guardarRemito(false)" class="bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-lg text-sm shadow-sm transition-all">Guardar sin Imprimir</button>
+          <button id="btn-imprimir" onclick="guardarEImprimir()" class="bg-cyan-700 hover:bg-cyan-800 disabled:opacity-50 text-white font-bold px-6 py-2 rounded-lg text-sm shadow flex items-center gap-2 transition-all">
+            <span>📄</span> <span id="txt-btn-imprimir">Imprimir Remito (Generar PDF)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- PESTAÑA 2: HISTORIAL -->
+  <main id="view-historial" class="max-w-6xl mx-auto p-6 hidden no-print">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+      <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+        <div>
+          <h2 class="font-bold text-slate-800 text-lg">Historial y Exportación de Remitos</h2>
+          <p class="text-xs text-slate-500">Muestra los 150 remitos más recientes. Para volúmenes mayores, selecciona el rango de fechas.</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3 text-xs">
+          <span class="font-bold text-slate-700">Rango de Consulta:</span>
+          <div>
+            <label class="text-[11px] text-slate-500 block">Desde:</label>
+            <input type="date" id="filtro-desde" class="border rounded px-2.5 py-1 text-xs font-semibold outline-none focus:ring-2 focus:ring-cyan-600">
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-500 block">Hasta:</label>
+            <input type="date" id="filtro-hasta" class="border rounded px-2.5 py-1 text-xs font-semibold outline-none focus:ring-2 focus:ring-cyan-600">
+          </div>
+          <button onclick="cargarRemitosPorRango()" class="mt-4 bg-slate-800 hover:bg-slate-900 text-white font-semibold px-3 py-1.5 rounded">Consultar Período</button>
+          <button onclick="cargarHistorialReciente()" class="mt-4 text-cyan-800 hover:underline">Ver Recientes</button>
+        </div>
+
+        <button onclick="exportarExcelCSV()" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-4 py-2 rounded-lg text-sm shadow flex items-center gap-2">
+          <span>📊</span> Exportar a Excel (CSV)
+        </button>
+      </div>
+
+      <div class="mb-4">
+        <input type="text" id="filtro-buscar" oninput="filtrarHistorialLocal()" placeholder="Buscar en esta vista por número, cliente, patente o material..." class="w-full border border-slate-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-600">
+      </div>
+
+      <div class="overflow-x-auto border border-slate-200 rounded-lg">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50 border-b border-slate-200 text-xs text-slate-600 font-semibold uppercase">
+            <tr>
+              <th class="py-3 px-4">FECHA</th>
+              <th class="py-3 px-4">Nº REMITO</th>
+              <th class="py-3 px-4">CLIENTE (SEÑOR/ES)</th>
+              <th class="py-3 px-4">PATENTE</th>
+              <th class="py-3 px-4">MATERIALES / CANTIDAD</th>
+              <th class="py-3 px-4 text-center">ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody id="historial-tbody">
+            <tr><td colspan="6" class="text-center py-8 text-slate-400">Cargando remitos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- PESTAÑA 3: PRECARGAS & MAESTROS -->
+  <main id="view-maestros" class="max-w-6xl mx-auto p-6 hidden no-print">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-bold text-slate-800 text-sm">Clientes Habituales</h3>
+          <button onclick="abrirModalCliente()" class="text-xs bg-cyan-700 hover:bg-cyan-800 text-white px-2.5 py-1 rounded font-semibold">+ Agregar</button>
+        </div>
+        <div id="lista-maestro-clientes" class="space-y-2 max-h-[500px] overflow-y-auto pr-1"></div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
+          <h3 class="font-bold text-slate-800 text-sm">Patentes & Flota</h3>
+          <div class="flex gap-1.5">
+            <button onclick="abrirModalImportador()" class="text-xs bg-emerald-700 hover:bg-emerald-800 text-white px-2 py-1 rounded font-bold flex items-center gap-1 shadow-sm">
+              <span>📥</span> Importar Masivo
+            </button>
+            <button onclick="abrirModalPatente()" class="text-xs bg-blue-700 hover:bg-blue-800 text-white px-2 py-1 rounded font-semibold">+ Agregar</button>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">Patentes y transportistas vinculados.</p>
+        <div id="lista-maestro-patentes" class="space-y-2 max-h-[500px] overflow-y-auto pr-1"></div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-bold text-slate-800 text-sm">Materiales Frecuentes</h3>
+          <button onclick="abrirModalMaterial()" class="text-xs bg-emerald-700 hover:bg-emerald-800 text-white px-2.5 py-1 rounded font-semibold">+ Agregar</button>
+        </div>
+        <div id="lista-maestro-materiales" class="space-y-2 max-h-[500px] overflow-y-auto pr-1"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODALES MAESTROS -->
+  <div id="modal-cliente" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="modal-cliente-titulo" class="font-bold text-base text-slate-800">Agregar Cliente</h3>
+        <button onclick="cerrarModalCliente()" class="text-slate-400 hover:text-slate-600 font-bold text-xl">×</button>
+      </div>
+      <input type="hidden" id="m-cli-id">
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="font-semibold block mb-1">Razón Social:</label>
+          <input type="text" id="m-cli-razon" class="w-full border rounded p-2 uppercase outline-none focus:ring-2 focus:ring-cyan-600">
+        </div>
+        <div>
+          <label class="font-semibold block mb-1">C.U.I.T.:</label>
+          <input type="text" id="m-cli-cuit" class="w-full border rounded p-2 font-mono outline-none focus:ring-2 focus:ring-cyan-600">
+        </div>
+        <div>
+          <label class="font-semibold block mb-1">Localidad:</label>
+          <input type="text" id="m-cli-localidad" class="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-cyan-600">
+        </div>
+        <div>
+          <label class="font-semibold block mb-1">Domicilio:</label>
+          <input type="text" id="m-cli-domicilio" class="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-cyan-600">
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-5">
+        <button onclick="cerrarModalCliente()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Cancelar</button>
+        <button onclick="guardarNuevoCliente()" class="px-4 py-1.5 text-xs font-bold bg-cyan-700 text-white rounded hover:bg-cyan-800">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-patente" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="modal-patente-titulo" class="font-bold text-base text-slate-800">Agregar Patente</h3>
+        <button onclick="cerrarModalPatente()" class="text-slate-400 hover:text-slate-600 font-bold text-xl">×</button>
+      </div>
+      <input type="hidden" id="m-tra-id">
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="font-semibold block mb-1">Patente:</label>
+          <input type="text" id="m-tra-patente" class="w-full border rounded p-2 uppercase font-mono font-bold outline-none focus:ring-2 focus:ring-blue-600">
+        </div>
+        <div>
+          <label class="font-semibold block mb-1">Transportista / Fletero:</label>
+          <input type="text" id="m-tra-nombre" class="w-full border rounded p-2 uppercase outline-none focus:ring-2 focus:ring-blue-600">
+        </div>
+        <div>
+          <label class="font-semibold block mb-1">C.U.I.T. Fletero:</label>
+          <input type="text" id="m-tra-cuit" class="w-full border rounded p-2 font-mono outline-none focus:ring-2 focus:ring-blue-600">
+        </div>
+        <div>
+          <label class="font-semibold block mb-1">Domicilio Fletero:</label>
+          <input type="text" id="m-tra-domicilio" class="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-blue-600">
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-5">
+        <button onclick="cerrarModalPatente()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Cancelar</button>
+        <button onclick="guardarNuevaPatente()" class="px-4 py-1.5 text-xs font-bold bg-blue-700 text-white rounded hover:bg-blue-800">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-material" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 border border-slate-200">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="modal-material-titulo" class="font-bold text-base text-slate-800">Agregar Material</h3>
+        <button onclick="cerrarModalMaterial()" class="text-slate-400 hover:text-slate-600 font-bold text-xl">×</button>
+      </div>
+      <input type="hidden" id="m-mat-id">
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="font-semibold block mb-1">Descripción:</label>
+          <input type="text" id="m-mat-desc" class="w-full border rounded p-2 uppercase outline-none focus:ring-2 focus:ring-emerald-600">
+        </div>
+        <div>
+          <label class="font-semibold block mb-1">Unidad:</label>
+          <select id="m-mat-unidad" class="w-full border rounded p-2 outline-none">
+            <option value="m3">m3</option>
+            <option value="tn">tn</option>
+            <option value="viaje">viaje</option>
+            <option value="bolsas">bolsas</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-5">
+        <button onclick="cerrarModalMaterial()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Cancelar</button>
+        <button onclick="guardarNuevoMaterial()" class="px-4 py-1.5 text-xs font-bold bg-emerald-700 text-white rounded hover:bg-emerald-800">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-importador" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-slate-200">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-bold text-lg text-slate-800">Importación Masiva de Patentes</h3>
+        <button onclick="cerrarModalImportador()" class="text-slate-400 hover:text-slate-600 font-bold text-xl">×</button>
+      </div>
+      <textarea id="import-paste-area" rows="6" class="w-full border rounded-lg p-3 text-xs font-mono outline-none mb-3"></textarea>
+      <div class="flex justify-between items-center mb-4">
+        <button onclick="procesarTextoPegado()" class="bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded">Procesar</button>
+        <span id="import-contador" class="text-xs font-bold text-emerald-700">0 filas listas</span>
+      </div>
+      <div id="import-preview-box" class="max-h-48 overflow-y-auto border rounded-lg mb-4 text-xs">
+        <table class="w-full text-left">
+          <tbody id="import-preview-tbody"></tbody>
+        </table>
+      </div>
+      <div class="flex justify-end gap-3 border-t pt-3">
+        <button onclick="cerrarModalImportador()" class="px-4 py-2 text-xs text-slate-600 rounded">Cancelar</button>
+        <button onclick="guardarPatentesImportadas()" id="btn-confirmar-import" disabled class="bg-emerald-700 text-white font-bold text-xs px-5 py-2 rounded">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let remitosList = [];
+    let clientesList = [];
+    let patentesList = [];
+    let materialesList = [];
+    let patentesAImportar = [];
+    let guardandoBloqueado = false;
+    let unsubscribeRemitos = null;
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const hoy = new Date().toISOString().slice(0, 10);
+      document.getElementById("remito-fecha").value = hoy;
+      document.getElementById("filtro-desde").value = hoy;
+      document.getElementById("filtro-hasta").value = hoy;
+
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest("#search-cliente") && !e.target.closest("#dropdown-cliente")) {
+          document.getElementById("dropdown-cliente").classList.add("hidden");
+        }
+        if (!e.target.closest("#search-patente") && !e.target.closest("#dropdown-patente")) {
+          document.getElementById("dropdown-patente").classList.add("hidden");
+        }
+        if (!e.target.closest("#search-material") && !e.target.closest("#dropdown-material")) {
+          document.getElementById("dropdown-material").classList.add("hidden");
+        }
+      });
+    });
+
+    window.addEventListener("firebase-ready", () => {
+      const db = window.cloudDB;
+      const { collection, onSnapshot } = window.firestoreMethods;
+
+      try {
+        cargarHistorialReciente();
+
+        onSnapshot(collection(db, "patentes"), (snap) => {
+          patentesList = [];
+          snap.forEach(d => patentesList.push({ id: d.id, ...d.data() }));
+          cargarMaestrosUI();
+        });
+
+        onSnapshot(collection(db, "clientes"), (snap) => {
+          clientesList = [];
+          snap.forEach(d => clientesList.push({ id: d.id, ...d.data() }));
+          cargarMaestrosUI();
+        });
+
+        onSnapshot(collection(db, "materiales"), (snap) => {
+          materialesList = [];
+          snap.forEach(d => {
+            const data = d.data();
+            const nombre = data.desc || data.nombre || data.descripcion || "Material";
+            const unidad = data.unidad || "m3";
+            materialesList.push({ id: d.id, desc: nombre, unidad: unidad });
+          });
+          cargarMaestrosUI();
+        });
+      } catch(e) {
+        console.warn("Error vinculando listeners:", e);
+      }
+    });
+
+    function cargarHistorialReciente() {
+      if (!window.cloudDB) return;
+      if (unsubscribeRemitos) unsubscribeRemitos();
+
+      const db = window.cloudDB;
+      const { collection, onSnapshot, query, orderBy, limit } = window.firestoreMethods;
+      const q = query(collection(db, "remitos"), orderBy("creado", "desc"), limit(150));
+
+      unsubscribeRemitos = onSnapshot(q, (snap) => {
+        remitosList = [];
+        snap.forEach(d => remitosList.push({ id: d.id, ...d.data() }));
+        renderizarHistorial(remitosList);
+      });
+    }
+
+    async function cargarRemitosPorRango() {
+      const desde = document.getElementById("filtro-desde").value;
+      const hasta = document.getElementById("filtro-hasta").value;
+      if (!desde || !hasta) return alert("Selecciona ambas fechas para filtrar.");
+
+      if (unsubscribeRemitos) unsubscribeRemitos();
+
+      const db = window.cloudDB;
+      const { collection, getDocs, query, where, orderBy } = window.firestoreMethods;
+      const tbody = document.getElementById("historial-tbody");
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-cyan-700 font-semibold">Consultando base de datos para el período seleccionado...</td></tr>';
+
+      try {
+        const q = query(
+          collection(db, "remitos"),
+          where("fecha", ">=", desde),
+          where("fecha", "<=", hasta),
+          orderBy("fecha", "desc")
+        );
+        const snap = await getDocs(q);
+        remitosList = [];
+        snap.forEach(d => remitosList.push({ id: d.id, ...d.data() }));
+        renderizarHistorial(remitosList);
+      } catch (e) {
+        console.error("Error filtrando por rango:", e);
+        alert("Ocurrió un error al consultar el período. Volviendo a los más recientes.");
+        cargarHistorialReciente();
+      }
+    }
+
+    function switchTab(tab) {
+      document.getElementById("view-emitir").classList.add("hidden");
+      document.getElementById("view-historial").classList.add("hidden");
+      document.getElementById("view-maestros").classList.add("hidden");
+      
+      document.getElementById("tab-emitir").className = "px-4 py-1.5 rounded font-semibold text-slate-300 hover:text-white";
+      document.getElementById("tab-historial").className = "px-4 py-1.5 rounded font-semibold text-slate-300 hover:text-white";
+      document.getElementById("tab-maestros").className = "px-4 py-1.5 rounded font-semibold text-slate-300 hover:text-white";
+
+      if(tab === 'emitir') {
+        document.getElementById("view-emitir").classList.remove("hidden");
+        document.getElementById("tab-emitir").className = "px-4 py-1.5 rounded font-semibold bg-cyan-700 text-white";
+      } else if(tab === 'historial') {
+        document.getElementById("view-historial").classList.remove("hidden");
+        document.getElementById("tab-historial").className = "px-4 py-1.5 rounded font-semibold bg-cyan-700 text-white";
+      } else if(tab === 'maestros') {
+        document.getElementById("view-maestros").classList.remove("hidden");
+        document.getElementById("tab-maestros").className = "px-4 py-1.5 rounded font-semibold bg-cyan-700 text-white";
+      }
+    }
+
+    function cargarMaestrosUI() {
+      const listCli = document.getElementById("lista-maestro-clientes");
+      listCli.innerHTML = '';
+      clientesList.forEach((c) => {
+        listCli.innerHTML += `
+          <div class="border border-slate-200 rounded p-2.5 text-xs bg-slate-50 relative group">
+            <div class="absolute top-2 right-2 flex items-center gap-1.5">
+              <button onclick="editarCliente('${c.id}')" title="Editar" class="text-slate-400 hover:text-cyan-700 font-bold text-sm">✏️</button>
+              <button onclick="borrarRegistro('clientes', '${c.id}')" title="Eliminar" class="text-slate-400 hover:text-rose-600 font-bold text-sm">🗑️</button>
+            </div>
+            <div class="font-bold text-slate-800 pr-14">${c.razon}</div>
+            <div class="text-slate-500">CUIT: ${c.cuit || '-'} | ${c.localidad || '-'} - ${c.domicilio || '-'}</div>
+          </div>`;
+      });
+
+      const listPat = document.getElementById("lista-maestro-patentes");
+      listPat.innerHTML = '';
+      patentesList.forEach((p) => {
+        listPat.innerHTML += `
+          <div class="border border-slate-200 rounded p-2.5 text-xs bg-slate-50 relative group">
+            <div class="absolute top-2 right-2 flex items-center gap-1.5">
+              <button onclick="editarPatente('${p.id}')" title="Editar" class="text-slate-400 hover:text-blue-700 font-bold text-sm">✏️</button>
+              <button onclick="borrarRegistro('patentes', '${p.id}')" title="Eliminar" class="text-slate-400 hover:text-rose-600 font-bold text-sm">🗑️</button>
+            </div>
+            <div class="font-mono font-bold text-blue-800 pr-14">${p.patente}</div>
+            <div class="text-slate-700 font-semibold">${p.transportista || '-'}</div>
+            <div class="text-slate-500">CUIT: ${p.cuit || '-'} | ${p.domicilio || '-'}</div>
+          </div>`;
+      });
+
+      const listMat = document.getElementById("lista-maestro-materiales");
+      listMat.innerHTML = '';
+      materialesList.forEach((m) => {
+        const descripcion = m.desc || "Material";
+        listMat.innerHTML += `
+          <div class="border border-slate-200 rounded p-2.5 text-xs bg-slate-50 flex justify-between items-center">
+            <div>
+              <div class="font-bold text-slate-800">${descripcion}</div>
+              <div class="text-slate-500">Unidad: ${m.unidad}</div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="editarMaterial('${m.id}')" title="Editar" class="text-slate-400 hover:text-emerald-700 font-bold text-sm">✏️</button>
+              <button onclick="borrarRegistro('materiales', '${m.id}')" title="Eliminar" class="text-slate-400 hover:text-rose-600 font-bold text-sm">🗑️</button>
+            </div>
+          </div>`;
+      });
+    }
+
+    function filtrarListaDesplegable(tipo, texto) {
+      const q = (texto || "").toLowerCase().trim();
+
+      if (tipo === 'cliente') {
+        const drop = document.getElementById("dropdown-cliente");
+        const filtrados = clientesList.filter(c => (c.razon || "").toLowerCase().includes(q) || (c.cuit || "").toLowerCase().includes(q));
+        drop.innerHTML = filtrados.length === 0 ? '<div class="p-2.5 text-slate-400 text-center">No hay coincidencias</div>' : filtrados.map(c => `
+          <div onclick="seleccionarClientePorId('${c.id}')" class="p-2 hover:bg-cyan-50 cursor-pointer">
+            <div class="font-bold text-slate-800">${c.razon}</div>
+            <div class="text-[11px] text-slate-500">CUIT: ${c.cuit || '-'} | ${c.localidad || '-'}</div>
+          </div>`).join('');
+        drop.classList.remove("hidden");
+      }
+
+      if (tipo === 'patente') {
+        const drop = document.getElementById("dropdown-patente");
+        const filtrados = patentesList.filter(p => (p.patente || "").toLowerCase().includes(q) || (p.transportista || "").toLowerCase().includes(q));
+        drop.innerHTML = filtrados.length === 0 ? '<div class="p-2.5 text-slate-400 text-center">No hay coincidencias</div>' : filtrados.map(p => `
+          <div onclick="seleccionarPatentePorId('${p.id}')" class="p-2 hover:bg-blue-50 cursor-pointer">
+            <span class="font-mono font-bold text-blue-900 bg-blue-100 px-1 py-0.5 rounded mr-1">${p.patente}</span>
+            <span class="font-semibold text-slate-700">${p.transportista || ''}</span>
+          </div>`).join('');
+        drop.classList.remove("hidden");
+      }
+
+      if (tipo === 'material') {
+        const drop = document.getElementById("dropdown-material");
+        const filtrados = materialesList.filter(m => (m.desc || "").toLowerCase().includes(q));
+        drop.innerHTML = filtrados.length === 0 ? '<div class="p-2.5 text-slate-400 text-center">No hay coincidencias</div>' : filtrados.map(m => `
+          <div onclick="insertarMaterialPorId('${m.id}')" class="p-2 hover:bg-emerald-50 cursor-pointer flex justify-between items-center">
+            <span class="font-bold text-slate-800">${m.desc}</span>
+            <span class="text-[11px] text-slate-500 font-mono">${m.unidad}</span>
+          </div>`).join('');
+        drop.classList.remove("hidden");
+      }
+    }
+
+    function seleccionarClientePorId(id) {
+      const c = clientesList.find(x => x.id === id);
+      if (!c) return;
+      document.getElementById("cli-razon").value = c.razon || "";
+      document.getElementById("cli-localidad").value = c.localidad || "";
+      document.getElementById("cli-domicilio").value = c.domicilio || "";
+      document.getElementById("cli-cuit").value = c.cuit || "";
+      document.getElementById("search-cliente").value = c.razon || "";
+      document.getElementById("dropdown-cliente").classList.add("hidden");
+    }
+
+    function seleccionarPatentePorId(id) {
+      const p = patentesList.find(x => x.id === id);
+      if (!p) return;
+      document.getElementById("tra-patente").value = p.patente || "";
+      document.getElementById("tra-nombre").value = p.transportista || "";
+      document.getElementById("tra-cuit").value = p.cuit || "";
+      document.getElementById("tra-domicilio").value = p.domicilio || "";
+      document.getElementById("search-patente").value = p.patente + " - " + (p.transportista || "");
+      document.getElementById("dropdown-patente").classList.add("hidden");
+    }
+
+    function insertarMaterialPorId(id) {
+      const m = materialesList.find(x => x.id === id);
+      if (!m) return;
+      agregarFilaItem(30, m.unidad, m.desc);
+      document.getElementById("search-material").value = "";
+      document.getElementById("dropdown-material").classList.add("hidden");
+    }
+
+    function agregarFilaItem(cant = 30, unidad = "m3", desc = "") {
+      const tbody = document.getElementById("items-tbody");
+      const tr = document.createElement("tr");
+      tr.className = "border-b border-slate-100";
+      tr.innerHTML = `
+        <td class="py-1.5 pr-2"><input type="number" step="any" value="${cant}" class="item-cant w-full border border-slate-300 rounded px-2 py-1 text-sm font-semibold"></td>
+        <td class="py-1.5 pr-2"><input type="text" value="${unidad}" class="item-unidad w-full border border-slate-300 rounded px-2 py-1 text-sm"></td>
+        <td class="py-1.5 pr-2"><input type="text" value="${desc}" class="item-desc w-full border border-slate-300 rounded px-2 py-1 text-sm uppercase"></td>
+        <td class="py-1.5 text-center"><button onclick="eliminarFila(this)" class="text-slate-400 hover:text-rose-600 font-bold">×</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function eliminarFila(btn) {
+      const tr = btn.closest("tr");
+      if(document.querySelectorAll("#items-tbody tr").length > 1) tr.remove();
+    }
+
+    function abrirModalCliente() { 
+      document.getElementById("modal-cliente-titulo").innerText = "Agregar Cliente";
+      document.getElementById("m-cli-id").value = "";
+      document.getElementById("m-cli-razon").value = "";
+      document.getElementById("m-cli-cuit").value = "";
+      document.getElementById("m-cli-localidad").value = "";
+      document.getElementById("m-cli-domicilio").value = "";
+      document.getElementById("modal-cliente").classList.remove("hidden"); 
+    }
+    function cerrarModalCliente() { document.getElementById("modal-cliente").classList.add("hidden"); }
+
+    function editarCliente(id) {
+      const cli = clientesList.find(c => c.id === id);
+      if(!cli) return;
+      document.getElementById("modal-cliente-titulo").innerText = "Editar Cliente";
+      document.getElementById("m-cli-id").value = cli.id;
+      document.getElementById("m-cli-razon").value = cli.razon || "";
+      document.getElementById("m-cli-cuit").value = cli.cuit || "";
+      document.getElementById("m-cli-localidad").value = cli.localidad || "";
+      document.getElementById("m-cli-domicilio").value = cli.domicilio || "";
+      document.getElementById("modal-cliente").classList.remove("hidden");
+    }
+
+    async function guardarNuevoCliente() {
+      const id = document.getElementById("m-cli-id").value;
+      const razon = document.getElementById("m-cli-razon").value.trim().toUpperCase();
+      const cuit = document.getElementById("m-cli-cuit").value.trim();
+      const localidad = document.getElementById("m-cli-localidad").value.trim();
+      const domicilio = document.getElementById("m-cli-domicilio").value.trim();
+      if(!razon) return alert("Ingresa la razón social");
+      
+      if(window.cloudDB) {
+        if(id) {
+          await window.firestoreMethods.updateDoc(window.firestoreMethods.doc(window.cloudDB, "clientes", id), { razon, cuit, localidad, domicilio });
+        } else {
+          await window.firestoreMethods.addDoc(window.firestoreMethods.collection(window.cloudDB, "clientes"), { razon, cuit, localidad, domicilio });
+        }
+      }
+      cerrarModalCliente();
+    }
+
+    function abrirModalPatente() { 
+      document.getElementById("modal-patente-titulo").innerText = "Agregar Patente";
+      document.getElementById("m-tra-id").value = "";
+      document.getElementById("m-tra-patente").value = "";
+      document.getElementById("m-tra-nombre").value = "";
+      document.getElementById("m-tra-cuit").value = "";
+      document.getElementById("m-tra-domicilio").value = "";
+      document.getElementById("modal-patente").classList.remove("hidden"); 
+    }
+    function cerrarModalPatente() { document.getElementById("modal-patente").classList.add("hidden"); }
+
+    function editarPatente(id) {
+      const pat = patentesList.find(p => p.id === id);
+      if(!pat) return;
+      document.getElementById("modal-patente-titulo").innerText = "Editar Patente";
+      document.getElementById("m-tra-id").value = pat.id;
+      document.getElementById("m-tra-patente").value = pat.patente || "";
+      document.getElementById("m-tra-nombre").value = pat.transportista || "";
+      document.getElementById("m-tra-cuit").value = pat.cuit || "";
+      document.getElementById("m-tra-domicilio").value = pat.domicilio || "";
+      document.getElementById("modal-patente").classList.remove("hidden");
+    }
+
+    async function guardarNuevaPatente() {
+      const id = document.getElementById("m-tra-id").value;
+      const patente = document.getElementById("m-tra-patente").value.trim().toUpperCase();
+      const transportista = document.getElementById("m-tra-nombre").value.trim().toUpperCase();
+      const cuit = document.getElementById("m-tra-cuit").value.trim();
+      const domicilio = document.getElementById("m-tra-domicilio").value.trim();
+      if(!patente) return alert("Ingresa la patente");
+
+      if(window.cloudDB) {
+        if(id) {
+          await window.firestoreMethods.updateDoc(window.firestoreMethods.doc(window.cloudDB, "patentes", id), { patente, transportista, cuit, domicilio });
+        } else {
+          await window.firestoreMethods.addDoc(window.firestoreMethods.collection(window.cloudDB, "patentes"), { patente, transportista, cuit, domicilio });
+        }
+      }
+      cerrarModalPatente();
+    }
+
+    function abrirModalMaterial() { 
+      document.getElementById("modal-material-titulo").innerText = "Agregar Material";
+      document.getElementById("m-mat-id").value = "";
+      document.getElementById("m-mat-desc").value = "";
+      document.getElementById("m-mat-unidad").value = "m3";
+      document.getElementById("modal-material").classList.remove("hidden"); 
+    }
+    function cerrarModalMaterial() { document.getElementById("modal-material").classList.add("hidden"); }
+
+    function editarMaterial(id) {
+      const mat = materialesList.find(m => m.id === id);
+      if(!mat) return;
+      document.getElementById("modal-material-titulo").innerText = "Editar Material";
+      document.getElementById("m-mat-id").value = mat.id;
+      document.getElementById("m-mat-desc").value = mat.desc || "";
+      document.getElementById("m-mat-unidad").value = mat.unidad || "m3";
+      document.getElementById("modal-material").classList.remove("hidden");
+    }
+
+    async function guardarNuevoMaterial() {
+      const id = document.getElementById("m-mat-id").value;
+      const desc = document.getElementById("m-mat-desc").value.trim();
+      const unidad = document.getElementById("m-mat-unidad").value;
+      if(!desc) return alert("Ingresa el nombre del material");
+
+      if(window.cloudDB) {
+        if(id) {
+          await window.firestoreMethods.updateDoc(window.firestoreMethods.doc(window.cloudDB, "materiales", id), { desc, unidad });
+        } else {
+          await window.firestoreMethods.addDoc(window.firestoreMethods.collection(window.cloudDB, "materiales"), { desc, unidad });
+        }
+      }
+      cerrarModalMaterial();
+    }
+
+    async function borrarRegistro(coleccion, id) {
+      if(!confirm("¿Deseas eliminar este registro?")) return;
+      if(window.cloudDB && id) {
+        await window.firestoreMethods.deleteDoc(window.firestoreMethods.doc(window.cloudDB, coleccion, id));
+      }
+    }
+
+    function abrirModalImportador() { document.getElementById("modal-importador").classList.remove("hidden"); }
+    function cerrarModalImportador() { document.getElementById("modal-importador").classList.add("hidden"); }
+
+    function procesarTextoPegado() {
+      const texto = document.getElementById("import-paste-area").value.trim();
+      if(!texto) return alert("Pega las celdas copiadas de Excel primero.");
+
+      patentesAImportar = [];
+      const lineas = texto.split(/\r?\n/);
+
+      lineas.forEach(lin => {
+        let cols = lin.split("\t");
+        if(cols.length < 2) cols = lin.split(";");
+        if(cols.length < 2) cols = lin.split(",");
+
+        const pat = (cols[0] || "").trim().toUpperCase();
+        const transp = (cols[1] || "").trim();
+        const cuit = (cols[2] || "").trim();
+        const dom = (cols[3] || "").trim();
+
+        if(pat && pat.length >= 4) {
+          patentesAImportar.push({ patente: pat, transportista: transp, cuit: cuit, domicilio: dom });
+        }
+      });
+
+      const tbody = document.getElementById("import-preview-tbody");
+      tbody.innerHTML = "";
+      patentesAImportar.forEach(p => {
+        tbody.innerHTML += `
+          <tr class="border-b border-slate-100">
+            <td class="p-2 font-mono font-bold text-blue-900">${p.patente}</td>
+            <td class="p-2">${p.transportista}</td>
+            <td class="p-2 font-mono">${p.cuit}</td>
+            <td class="p-2 text-slate-500">${p.domicilio}</td>
+          </tr>`;
+      });
+
+      document.getElementById("import-contador").innerText = `${patentesAImportar.length} patentes listas`;
+      document.getElementById("btn-confirmar-import").disabled = patentesAImportar.length === 0;
+    }
+
+    async function guardarPatentesImportadas() {
+      if(patentesAImportar.length === 0) return;
+      const btn = document.getElementById("btn-confirmar-import");
+      btn.innerText = "Sincronizando con la Nube...";
+      btn.disabled = true;
+
+      if(window.cloudDB) {
+        const db = window.cloudDB;
+        const { doc, setDoc } = window.firestoreMethods;
+        for(const item of patentesAImportar) {
+          const docId = item.patente.replace(/\s+/g, '_');
+          await setDoc(doc(db, "patentes", docId), item);
+        }
+      }
+
+      cerrarModalImportador();
+      alert(`¡Se importaron ${patentesAImportar.length} patentes con éxito!`);
+      btn.innerText = "Confirmar e Importar a la Nube";
+      btn.disabled = false;
+    }
+
+    function guardarEImprimir() { guardarRemito(true); }
+
+    async function guardarRemito(dispararImpresion = false) {
+      if (guardandoBloqueado) return;
+
+      const numInput = document.getElementById("remito-numero");
+      const numero = numInput.value.trim();
+      const fecha = document.getElementById("remito-fecha").value;
+
+      if (!numero) {
+        alert("Por favor indica el número de remito.");
+        return;
+      }
+
+      // Validación anti-duplicados estricta
+      const existeEnMemoria = remitosList.some(r => String(r.numero).trim() === numero);
+      if (existeEnMemoria) {
+        alert(`ERROR: El remito Nº ${numero} ya existe en el sistema. Cambia el número antes de guardar.`);
+        return;
+      }
+
+      const db = window.cloudDB;
+      if (db) {
+        try {
+          const { doc, getDoc } = window.firestoreMethods;
+          const snapCheck = await getDoc(doc(db, "remitos", String(numero)));
+          if (snapCheck.exists()) {
+            alert(`ERROR: El remito Nº ${numero} ya está registrado en la base de datos.`);
+            return;
+          }
+        } catch(e) {
+          console.warn("Comprobación previa omitida por red:", e);
+        }
+      }
+
+      guardandoBloqueado = true;
+      const btnGuardar = document.getElementById("btn-guardar-solo");
+      const btnImprimir = document.getElementById("btn-imprimir");
+      const txtImprimir = document.getElementById("txt-btn-imprimir");
+
+      btnGuardar.disabled = true;
+      btnImprimir.disabled = true;
+      txtImprimir.innerText = "Generando PDF...";
+
+      const cliente = {
+        razon: document.getElementById("cli-razon").value.trim(),
+        localidad: document.getElementById("cli-localidad").value.trim(),
+        cuit: document.getElementById("cli-cuit").value.trim(),
+        domicilio: document.getElementById("cli-domicilio").value.trim()
+      };
+      const transporte = {
+        patente: document.getElementById("tra-patente").value.trim(),
+        cuit: document.getElementById("tra-cuit").value.trim(),
+        transportista: document.getElementById("tra-nombre").value.trim(),
+        domicilio: document.getElementById("tra-domicilio").value.trim()
+      };
+      const obs = document.getElementById("remito-obs").value.trim();
+
+      const items = [];
+      document.querySelectorAll("#items-tbody tr").forEach(tr => {
+        items.push({
+          cant: tr.querySelector(".item-cant").value,
+          unidad: tr.querySelector(".item-unidad").value,
+          desc: tr.querySelector(".item-desc").value
+        });
+      });
+
+      const nuevoRemito = { numero, fecha, cliente, transporte, obs, items, creado: new Date().toISOString() };
+
+      try {
+        if(window.cloudDB) {
+          const { doc, setDoc } = window.firestoreMethods;
+          const docRef = doc(db, "remitos", String(numero));
+          await setDoc(docRef, nuevoRemito);
+        }
+
+        const numVal = parseInt(numero, 10);
+        if (!isNaN(numVal)) {
+          numInput.value = String(numVal + 1).padStart(numero.length, "0");
+        }
+
+        if(dispararImpresion) {
+          generarPDFLogisvial(nuevoRemito);
+        } else {
+          alert("Remito guardado correctamente.");
+        }
+      } catch (err) {
+        console.error("Error al guardar remito:", err);
+        alert("Ocurrió un error al guardar en la nube.");
+      } finally {
+        setTimeout(() => {
+          guardandoBloqueado = false;
+          btnGuardar.disabled = false;
+          btnImprimir.disabled = false;
+          txtImprimir.innerText = "Imprimir Remito (Generar PDF)";
+        }, 800);
+      }
+    }
+
+    // MOTOR DE IMPRESIÓN PDF (CALIBRADO LOGISVIAL 59.41 x 42 cm / A2 LANDSCAPE)
+    function generarPDFLogisvial(data) {
+      const { jsPDF } = window.jspdf;
+
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [594, 420]
+      });
+
+      const ox = parseFloat(document.getElementById("offset-x").value) || 0;
+      const oy = parseFloat(document.getElementById("offset-y").value) || 0;
+
+      // Las 3 columnas (Original, Duplicado, Triplicado) distribuidas horizontalmente
+      const columnasX = [45 + ox, 235 + ox, 425 + ox];
+
+      const yFecha = 120 + oy;
+      const yCliente = 145 + oy;
+      const yHeaderMat = 215 + oy;
+      const yMaterial = 230 + oy;
+      const yPatente = 295 + oy;
+
+      columnasX.forEach((colX) => {
+        // 1. Fecha
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.text(data.fecha || '', colX + 80, yFecha, { align: "right" });
+
+        // 2. Cliente (Señor/es)
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(18);
+        doc.text(data.cliente?.razon || "Particular", colX, yCliente);
+
+        // 3. Encabezados "Material" y Unidad (TON/M3)
+        const primerItem = (data.items && data.items.length > 0) ? data.items[0] : { cant: '', unidad: 'TON', desc: '' };
+        doc.setFont("times", "bold");
+        doc.setFontSize(26);
+        doc.text("Material", colX, yHeaderMat);
+        doc.text((primerItem.unidad || "TON").toUpperCase(), colX + 50, yHeaderMat);
+
+        // 4. Detalle de Material y Cantidad
+        doc.setFont("times", "normal");
+        doc.setFontSize(24);
+        const matLines = doc.splitTextToSize(primerItem.desc || '', 45);
+        doc.text(matLines, colX, yMaterial);
+
+        doc.setFont("times", "bold");
+        doc.text(String(primerItem.cant || ''), colX + 50, yMaterial + 5);
+
+        // 5. Patente Transporte
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(15);
+        doc.text(`Patente Transporte: ${data.transporte?.patente || ''}`, colX, yPatente);
+
+        // 6. Observaciones
+        if (data.obs) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(11);
+          doc.text(data.obs, colX, yPatente + 12);
+        }
+      });
+
+      // Abre directamente el PDF en una pestaña nueva con el visor nativo de Safari/Chrome
+      const blobUrl = URL.createObjectURL(doc.output('blob'));
+      window.open(blobUrl, '_blank');
+    }
+
+    function renderizarHistorial(lista) {
+      const tbody = document.getElementById("historial-tbody");
+      document.getElementById("badge-count").innerText = lista.length;
+      if(lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-slate-400">No se encontraron remitos en este período.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = "";
+      lista.forEach(r => {
+        const matResumen = r.items ? r.items.map(i => `${i.cant} ${i.unidad} - ${i.desc}`).join("<br>") : "-";
+        tbody.innerHTML += `
+          <tr class="border-b border-slate-100 hover:bg-slate-50">
+            <td class="py-3 px-4 font-semibold text-slate-700">${r.fecha}</td>
+            <td class="py-3 px-4 font-mono font-bold text-cyan-800">${r.numero || "-"}</td>
+            <td class="py-3 px-4 font-bold text-slate-800">${r.cliente?.razon || "-"}</td>
+            <td class="py-3 px-4 font-mono font-bold text-blue-700">${r.transporte?.patente || "-"}</td>
+            <td class="py-3 px-4 text-xs">${matResumen}</td>
+            <td class="py-3 px-4 text-center">
+              <div class="flex items-center justify-center gap-2">
+                <button onclick='reimprimirRemitoPDF(${JSON.stringify(r)})' class="bg-cyan-100 text-cyan-800 hover:bg-cyan-200 text-xs px-2.5 py-1 rounded font-bold">Imprimir PDF</button>
+                <button onclick="borrarRegistro('remitos', '${r.id}')" title="Eliminar remito" class="text-slate-400 hover:text-rose-600 text-base font-bold">🗑️</button>
+              </div>
+            </td>
+          </tr>`;
+      });
+    }
+
+    function reimprimirRemitoPDF(r) {
+      generarPDFLogisvial(r);
+    }
+
+    function filtrarHistorialLocal() {
+      const q = document.getElementById("filtro-buscar").value.toLowerCase().trim();
+      if(!q) return renderizarHistorial(remitosList);
+
+      const filtrados = remitosList.filter(r => {
+        const num = (r.numero || "").toLowerCase();
+        const cli = (r.cliente?.razon || "").toLowerCase();
+        const pat = (r.transporte?.patente || "").toLowerCase();
+        const mats = (r.items || []).map(i => (i.desc || "").toLowerCase()).join(" ");
+        return num.includes(q) || cli.includes(q) || pat.includes(q) || mats.includes(q);
+      });
+      renderizarHistorial(filtrados);
+    }
+
+    function exportarExcelCSV() {
+      if(remitosList.length === 0) return alert("No hay remitos para exportar en esta vista.");
+      let csv = "FECHA;NUMERO;CLIENTE;LOCALIDAD;DOMICILIO CLIENTE;CUIT CLIENTE;PATENTE;TRANSPORTISTA;CUIT TRANSPORTE;DOMICILIO TRANSPORTE;CANTIDAD;UNIDAD;MATERIAL;OBSERVACIONES\r\n";
+      remitosList.forEach(r => {
+        if(r.items && r.items.length > 0) {
+          r.items.forEach(it => {
+            csv += `"${r.fecha}";"${r.numero}";"${r.cliente?.razon || ''}";"${r.cliente?.localidad || ''}";"${r.cliente?.domicilio || ''}";"${r.cliente?.cuit || ''}";"${r.transporte?.patente || ''}";"${r.transporte?.transportista || ''}";"${r.transporte?.cuit || ''}";"${r.transporte?.domicilio || ''}";"${it.cant}";"${it.unidad}";"${it.desc}";"${r.obs || ''}"\r\n`;
+          });
+        }
+      });
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `Remitos_Ranelagh_${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+    }
+  </script>
+</body>
+</html>
