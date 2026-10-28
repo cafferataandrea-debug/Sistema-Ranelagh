@@ -639,29 +639,37 @@
 
     // GESTIÓN DE PRECIOS BASE Y ACUERDOS
     function renderizarPreciosUI() {
-      // 1. Precios Base
       const listaDiv = document.getElementById("lista-precios-base");
       listaDiv.innerHTML = "";
-      Object.keys(preciosBase).forEach(mat => {
-        listaDiv.innerHTML += `
-          <div class="flex items-center justify-between border-b pb-2">
-            <span class="font-bold text-slate-700">${mat}</span>
-            <div class="flex items-center gap-1">
-              <span class="text-slate-400 font-bold">$</span>
-              <input type="number" id="base-mat-${mat}" value="${preciosBase[mat]}" class="border rounded px-2 py-1 w-28 mono-num font-bold text-right">
-            </div>
-          </div>
-        `;
-      });
 
-      // 2. Selects Acuerdo
+      // Filtrar para mostrar únicamente nombres válidos de materiales reales
+      const materialesValidos = materialesLista.filter(m => m && m.toLowerCase() !== "material");
+
+      if (materialesValidos.length === 0) {
+        listaDiv.innerHTML = '<div class="text-slate-400 py-3 text-center">Cargando materiales oficiales...</div>';
+      } else {
+        materialesValidos.forEach(mat => {
+          const precioActual = preciosBase[mat] !== undefined ? preciosBase[mat] : 0;
+          listaDiv.innerHTML += `
+            <div class="flex items-center justify-between border-b pb-2">
+              <span class="font-bold text-slate-700">${mat}</span>
+              <div class="flex items-center gap-1">
+                <span class="text-slate-400 font-bold">$</span>
+                <input type="number" id="base-mat-${mat}" value="${precioActual}" class="border rounded px-2 py-1 w-28 mono-num font-bold text-right">
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      // Menú desplegable para Acuerdos Especiales
       const selMatAcuerdo = document.getElementById("acuerdo-material");
       selMatAcuerdo.innerHTML = '<option value="">-- Material --</option>';
-      Object.keys(preciosBase).forEach(m => {
+      materialesValidos.forEach(m => {
         selMatAcuerdo.innerHTML += `<option value="${m}">${m}</option>`;
       });
 
-      // 3. Tabla Acuerdos
+      // Tabla de Acuerdos Especiales por Cliente
       const tbodyAcuerdos = document.getElementById("tbody-acuerdos");
       tbodyAcuerdos.innerHTML = "";
       let hayAcuerdos = false;
