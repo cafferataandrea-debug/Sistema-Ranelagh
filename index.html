@@ -382,17 +382,28 @@
     let remitosNube = [];
     let movimientosCC = JSON.parse(localStorage.getItem('rc_movimientos_cc')) || [];
 
-    // Precios Base por Material (Por defecto)
-    let preciosBase = JSON.parse(localStorage.getItem('rc_precios_base')) || {
-      "Tierra Negra": 6500,
-      "Tosca": 4800,
-      "Tierra Colorada": 5200,
-      "Arena": 11000,
-      "Piedra Partida": 14500
-    };
-
-    // Acuerdos Especiales: { "Cliente X": { "Tierra Negra": 6000 } }
+ // Lista de Precios Base: inicia vacía y se llena SOLO con los materiales que diste de alta en Firebase
+    let preciosBase = JSON.parse(localStorage.getItem('rc_precios_base')) || {};
     let acuerdosClientes = JSON.parse(localStorage.getItem('rc_acuerdos_clientes')) || {};
+
+    // Sincronización en tiempo real con Firebase:
+    // Al leer la colección "materiales", toma EXACTAMENTE tus materiales creados
+    function sincronizarMaterialesConPrecios() {
+      materialesLista.forEach(matNombre => {
+        if (preciosBase[matNombre] === undefined) {
+          preciosBase[matNombre] = 0; // Inicia en 0 si es nuevo
+        }
+      });
+
+      // Eliminar cualquier material viejo que ya no exista en tu Firebase
+      Object.keys(preciosBase).forEach(k => {
+        if (!materialesLista.includes(k) && materialesLista.length > 0) {
+          delete preciosBase[k];
+        }
+      });
+
+      renderizarPreciosUI();
+    }
 
     window.addEventListener("DOMContentLoaded", () => {
       document.getElementById('mov-fecha').value = new Date().toISOString().split('T')[0];
@@ -424,7 +435,7 @@
           const dt = d.data();
           materialesLista.push(dt.desc || dt.nombre || "Material");
         });
-        renderizarPreciosUI();
+        sincronizarMaterialesConPrecios();
       });
 
       // Escuchar Movimientos de Cuenta Corriente
