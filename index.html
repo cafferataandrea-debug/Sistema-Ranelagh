@@ -428,36 +428,30 @@
         poblarSelectsProveedores();
       });
 
-      // Cargar Materiales
+      // Cargar Materiales en tiempo real desde Firebase
       onSnapshot(collection(db, "materiales"), (snap) => {
         materialesLista = [];
         snap.forEach(d => {
           const dt = d.data();
-          materialesLista.push(dt.desc || dt.nombre || "Material");
+          // Detecta el nombre real del material según cómo fue guardado
+          const nombreReal = dt.desc || dt.nombre || dt.descripcion || dt.material || "";
+          if (nombreReal && nombreReal.trim() !== "" && nombreReal.toLowerCase() !== "material") {
+            materialesLista.push(nombreReal.trim());
+          }
         });
-        sincronizarMaterialesConPrecios();
-      });
-
-      // Escuchar Movimientos de Cuenta Corriente
-      onSnapshot(collection(db, "cuentas_corrientes"), (snap) => {
-        const cloudMovs = [];
-        snap.forEach(d => cloudMovs.push({ id: d.id, ...d.data() }));
-        if (cloudMovs.length > 0) {
-          movimientosCC = cloudMovs;
-          localStorage.setItem('rc_movimientos_cc', JSON.stringify(movimientosCC));
-          if(document.getElementById('selectClienteCC').value) cargarCuentaCorrienteCliente();
-          if(document.getElementById('selectProveedorCC').value) cargarCuentaCorrienteProveedor();
+        
+        // Si no hubiera materiales guardados en la colección, extrae los materiales usados en los remitos
+        if (materialesLista.length === 0 && remitosNube.length > 0) {
+          const matsDeRemitos = new Set();
+          remitosNube.forEach(r => {
+            (r.items || []).forEach(it => {
+              if (it.desc && it.desc.trim()) matsDeRemitos.add(it.desc.trim());
+            });
+          });
+          materialesLista = Array.from(matsDeRemitos);
         }
-      });
 
-      // Cargar Configuración de Precios desde la nube
-      onSnapshot(window.firestoreMethods.doc(db, "configuracion", "precios"), (docSnap) => {
-        if(docSnap.exists()) {
-          const data = docSnap.data();
-          if(data.preciosBase) preciosBase = data.preciosBase;
-          if(data.acuerdosClientes) acuerdosClientes = data.acuerdosClientes;
-          renderizarPreciosUI();
-        }
+        renderizarPreciosUI();
       });
 
       cargarRemitosParaImportar();
