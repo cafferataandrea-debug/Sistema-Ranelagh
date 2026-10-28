@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cuentas Corrientes - Ranelagh Construcciones S.A.</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Firebase Modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, setDoc, onSnapshot, query, orderBy, limit, getDocs, doc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwZA4iI0hZ2ZBMpWJW3Li6VRxEb331gwg",
+      authDomain: "remitos-ranelagh.firebaseapp.com",
+      projectId: "remitos-ranelagh",
+      storageBucket: "remitos-ranelagh.firebasestorage.app",
+      messagingSenderId: "634992173577",
+      appId: "1:634992173577:web:ff17ac13ca8e54bc9d4ed8"
+    };
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      window.cloudDB = db;
+      window.firestoreMethods = { collection, addDoc, setDoc, onSnapshot, query, orderBy, limit, getDocs, doc, deleteDoc, writeBatch };
+      window.dispatchEvent(new Event("firebase-cc-ready"));
+    } catch(err) {
+      console.warn("Error iniciando Firebase:", err);
+    }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .mono-num { font-family: 'Roboto Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-slate-900 text-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-amber-600 text-white p-2 rounded-lg font-black text-xl tracking-wider">RC</div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight tracking-wide">Ranelagh Construcciones S.A.</h1>
+          <p class="text-xs text-slate-400">Cuentas Corrientes & Valorización Masiva de Remitos</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4 text-xs">
+        <div class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-slate-300 font-medium">Nube Conectada (remitos-ranelagh)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navegación -->
+    <nav class="max-w-7xl mx-auto px-4 flex gap-1 border-t border-slate-800 pt-1 text-sm font-medium">
+      <button onclick="cambiarTab('clientes')" id="tabBtn-clientes" class="px-4 py-2 border-b-2 border-amber-500 text-amber-400 font-semibold flex items-center gap-2">
+        <i class="fa-solid fa-users"></i> Clientes (Cobranzas)
+      </button>
+      <button onclick="cambiarTab('proveedores')" id="tabBtn-proveedores" class="px-4 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-2">
+        <i class="fa-solid fa-truck"></i> Proveedores & Fletes
+      </button>
+      <button onclick="cambiarTab('importador')" id="tabBtn-importador" class="px-4 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-2">
+        <i class="fa-solid fa-bolt text-amber-400"></i> Imputación Masiva <span id="badge-pendientes" class="ml-1 bg-amber-600 text-white text-[10px] px-1.5 py-0.2 rounded-full">0</span>
+      </button>
+      <button onclick="cambiarTab('precios')" id="tabBtn-precios" class="px-4 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-2">
+        <i class="fa-solid fa-tags text-emerald-400"></i> Lista de Precios & Acuerdos
+      </button>
+    </nav>
+  </header>
+
+  <!-- CONTENIDO -->
+  <main class="max-w-7xl mx-auto px-4 py-6 w-full flex-1">
+
+    <!-- 1. PESTAÑA: CLIENTES -->
+    <div id="tab-clientes" class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 md:col-span-2">
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-2">Seleccionar Cliente:</label>
+          <div class="flex gap-2">
+            <select id="selectClienteCC" onchange="cargarCuentaCorrienteCliente()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 outline-none">
+              <option value="">-- Elija un cliente habitual --</option>
+            </select>
+            <button onclick="abrirModalNuevoMovimiento('CLIENTE')" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-plus"></i> Registrar Cobranza
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+          <span class="text-xs font-bold text-slate-500 uppercase">Total Facturado / Remitido</span>
+          <div id="metricCliDebito" class="text-xl font-black text-slate-800 mono-num">$ 0.00</div>
+          <span class="text-[11px] text-slate-400">Cargos acumulados</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between border-l-4 border-l-rose-500">
+          <span class="text-xs font-bold text-slate-500 uppercase">Saldo Deudor Actual</span>
+          <div id="metricCliSaldo" class="text-2xl font-black text-rose-600 mono-num">$ 0.00</div>
+          <span class="text-[11px] text-slate-400">Pendiente de cobro</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3">
+          <h3 class="font-bold text-sm text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-receipt text-amber-600"></i> Detalle de Movimientos y Remitos
+          </h3>
+          <div class="flex gap-2">
+            <button onclick="generarResumenPDF('CLIENTE')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-semibold flex items-center gap-1.5">
+              <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+            </button>
+            <button onclick="exportarExcelCC('CLIENTE')" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold flex items-center gap-1.5">
+              <i class="fa-solid fa-file-excel"></i> Exportar Excel
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200">
+                <th class="py-3 px-4">Fecha</th>
+                <th class="py-3 px-4">Comprobante</th>
+                <th class="py-3 px-4">Concepto / Material</th>
+                <th class="py-3 px-4">Patente</th>
+                <th class="py-3 px-4 text-right">Débito (Entrega)</th>
+                <th class="py-3 px-4 text-right">Crédito (Cobro)</th>
+                <th class="py-3 px-4 text-right">Saldo Progresivo</th>
+                <th class="py-3 px-4 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-movimientos-clientes" class="divide-y divide-slate-100 font-medium">
+              <tr><td colspan="8" class="text-center py-10 text-slate-400">Seleccione un cliente para ver su estado de cuenta.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. PESTAÑA: PROVEEDORES & FLETES -->
+    <div id="tab-proveedores" class="hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 md:col-span-2">
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-2">Seleccionar Transportista:</label>
+          <div class="flex gap-2">
+            <select id="selectProveedorCC" onchange="cargarCuentaCorrienteProveedor()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 outline-none">
+              <option value="">-- Elija transportista --</option>
+            </select>
+            <button onclick="abrirModalNuevoMovimiento('PROVEEDOR')" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-plus"></i> Registrar Pago
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+          <span class="text-xs font-bold text-slate-500 uppercase">Viajes Realizados</span>
+          <div id="metricProvCredito" class="text-xl font-black text-slate-800 mono-num">$ 0.00</div>
+          <span class="text-[11px] text-slate-400">Total a favor del fletero</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between border-l-4 border-l-cyan-600">
+          <span class="text-xs font-bold text-slate-500 uppercase">Saldo Pendiente de Pago</span>
+          <div id="metricProvSaldo" class="text-2xl font-black text-cyan-700 mono-num">$ 0.00</div>
+          <span class="text-[11px] text-slate-400">A liquidar</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+          <h3 class="font-bold text-sm text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-truck-moving text-cyan-600"></i> Liquidación de Viajes y Pagos
+          </h3>
+          <button onclick="generarResumenPDF('PROVEEDOR')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-semibold flex items-center gap-1.5">
+            <i class="fa-solid fa-file-pdf"></i> Resumen PDF
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider border-b">
+                <th class="py-3 px-4">Fecha</th>
+                <th class="py-3 px-4">Comprobante</th>
+                <th class="py-3 px-4">Detalle / Destino</th>
+                <th class="py-3 px-4">Patente</th>
+                <th class="py-3 px-4 text-right">Crédito (A favor)</th>
+                <th class="py-3 px-4 text-right">Débito (Pago)</th>
+                <th class="py-3 px-4 text-right">Saldo Restante</th>
+                <th class="py-3 px-4 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-movimientos-proveedores" class="divide-y divide-slate-100 font-medium">
+              <tr><td colspan="8" class="text-center py-10 text-slate-400">Seleccione un transportista.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. PESTAÑA: IMPUTACIÓN MASIVA (1 CLIC) -->
+    <div id="tab-importador" class="hidden space-y-4">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div class="flex flex-wrap justify-between items-center gap-4 border-b border-slate-200 pb-4 mb-4">
+          <div>
+            <h2 class="font-bold text-slate-800 text-base">Imputación Masiva de Remitos (300/día)</h2>
+            <p class="text-xs text-slate-500">Aplica automáticamente el precio base del material o el acuerdo especial de cada cliente.</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="cargarRemitosParaImportar()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1.5">
+              <i class="fa-solid fa-arrows-rotate"></i> Refrescar
+            </button>
+            <button onclick="imputarTodosLosRemitosPendientes()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow flex items-center gap-2">
+              <i class="fa-solid fa-bolt"></i> Imputar Todos con 1 Clic
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-200 rounded-lg">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-100 text-slate-600 font-bold uppercase border-b">
+                <th class="py-3 px-3">Nº Remito</th>
+                <th class="py-3 px-3">Fecha</th>
+                <th class="py-3 px-3">Cliente</th>
+                <th class="py-3 px-3">Material & Cantidad</th>
+                <th class="py-3 px-3">Tarifa Aplicada</th>
+                <th class="py-3 px-3 text-right">Subtotal ($)</th>
+                <th class="py-3 px-3 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-remitos-pendientes" class="divide-y divide-slate-100">
+              <tr><td colspan="7" class="text-center py-8 text-slate-400">Cargando remitos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. PESTAÑA: LISTAS DE PRECIOS & ACUERDOS -->
+    <div id="tab-precios" class="hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Precios Base Generales -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+          <div class="flex justify-between items-center border-b pb-3">
+            <div>
+              <h3 class="font-bold text-sm text-slate-800">1. Precios Base Generales</h3>
+              <p class="text-xs text-slate-500">Precio por defecto para todos los clientes.</p>
+            </div>
+            <button onclick="guardarPreciosBase()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold">
+              Guardar Precios
+            </button>
+          </div>
+          <div id="lista-precios-base" class="space-y-3 text-xs">
+            <!-- Dinámico -->
+          </div>
+        </div>
+
+        <!-- Excepciones / Acuerdos por Cliente -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+          <div class="flex justify-between items-center border-b pb-3">
+            <div>
+              <h3 class="font-bold text-sm text-slate-800">2. Acuerdos Especiales por Cliente</h3>
+              <p class="text-xs text-slate-500">Sobrescribe el precio base para un cliente puntual.</p>
+            </div>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg border space-y-2 text-xs">
+            <div class="grid grid-cols-2 gap-2">
+              <select id="acuerdo-cliente" class="border rounded p-1.5 font-bold"></select>
+              <select id="acuerdo-material" class="border rounded p-1.5 font-bold"></select>
+            </div>
+            <div class="flex gap-2">
+              <input type="number" id="acuerdo-precio" placeholder="Precio Especial ($)" class="w-full border rounded p-1.5 mono-num font-bold">
+              <button onclick="agregarAcuerdoCliente()" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded font-bold whitespace-nowrap">
+                Fijar Acuerdo
+              </button>
+            </div>
+          </div>
+          <div class="overflow-x-auto max-h-60 overflow-y-auto">
+            <table class="w-full text-left text-xs border">
+              <thead class="bg-slate-100 font-bold border-b">
+                <tr>
+                  <th class="p-2">Cliente</th>
+                  <th class="p-2">Material</th>
+                  <th class="p-2 text-right">Precio Pactado</th>
+                  <th class="p-2 text-center"></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-acuerdos" class="divide-y"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: REGISTRAR MOVIMIENTO MANUAL -->
+  <div id="modal-movimiento" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-slate-200">
+      <div class="flex justify-between items-center mb-4 border-b pb-3">
+        <h3 id="modal-mov-titulo" class="font-bold text-base text-slate-800">Registrar Operación</h3>
+        <button onclick="cerrarModalMovimiento()" class="text-slate-400 hover:text-slate-600 font-bold text-xl">×</button>
+      </div>
+
+      <form id="form-movimiento" onsubmit="event.preventDefault(); guardarMovimientoManual();" class="space-y-4 text-xs">
+        <input type="hidden" id="mov-tipo-entidad" value="CLIENTE">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-bold block mb-1 text-slate-700">Fecha Operación:</label>
+            <input type="date" id="mov-fecha" required class="w-full border rounded p-2 text-xs focus:ring-2 focus:ring-amber-500 outline-none">
+          </div>
+          <div>
+            <label class="font-bold block mb-1 text-slate-700">Tipo de Comprobante:</label>
+            <select id="mov-tipo-comp" required class="w-full border rounded p-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500 outline-none">
+              <option value="Recibo de Cobro">Recibo de Cobro (Cobranza)</option>
+              <option value="Factura A">Factura A</option>
+              <option value="Factura B">Factura B</option>
+              <option value="Orden de Pago">Orden de Pago (A Fletero)</option>
+              <option value="Nota de Crédito">Nota de Crédito</option>
+              <option value="Nota de Débito">Nota de Débito</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-bold block mb-1 text-slate-700">Nº Comprobante / Recibo:</label>
+            <input type="text" id="mov-numero" placeholder="Ej: REC-00045" class="w-full border rounded p-2 text-xs mono-num uppercase">
+          </div>
+          <div>
+            <label class="font-bold block mb-1 text-slate-700">Medio de Pago / Cobro:</label>
+            <select id="mov-medio" class="w-full border rounded p-2 text-xs">
+              <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+              <option value="Cheque Propio / Terceros">Cheque (Cartera)</option>
+              <option value="Efectivo">Efectivo</option>
+              <option value="Compensación Viajes">Compensación Viajes</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="font-bold block mb-1 text-slate-700">Detalle / Concepto:</label>
+          <input type="text" id="mov-concepto" required placeholder="Ej: Cancelación anticipada remitos quincena" class="w-full border rounded p-2 text-xs uppercase">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border">
+          <div>
+            <label class="font-bold block mb-1 text-slate-700">Importe ($):</label>
+            <input type="number" step="0.01" id="mov-importe" required placeholder="0.00" class="w-full border rounded p-2 text-sm font-bold mono-num text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none">
+          </div>
+          <div>
+            <label class="font-bold block mb-1 text-slate-700">Efecto en la Cuenta:</label>
+            <select id="mov-naturaleza" class="w-full border rounded p-2 text-xs font-semibold">
+              <option value="HABER">Crédito (Resta deuda / Pago recibido)</option>
+              <option value="DEBE">Débito (Suma deuda / Facturación)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t">
+          <button type="button" onclick="cerrarModalMovimiento()" class="px-4 py-2 text-xs text-slate-600 rounded">Cancelar</button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold bg-amber-600 text-white rounded hover:bg-amber-700 shadow-sm">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let clientesLista = [];
+    let patentesLista = [];
+    let materialesLista = [];
+    let remitosNube = [];
+    let movimientosCC = JSON.parse(localStorage.getItem('rc_movimientos_cc')) || [];
+
+    // Precios Base por Material (Por defecto)
+    let preciosBase = JSON.parse(localStorage.getItem('rc_precios_base')) || {
+      "Tierra Negra": 6500,
+      "Tosca": 4800,
+      "Tierra Colorada": 5200,
+      "Arena": 11000,
+      "Piedra Partida": 14500
+    };
+
+    // Acuerdos Especiales: { "Cliente X": { "Tierra Negra": 6000 } }
+    let acuerdosClientes = JSON.parse(localStorage.getItem('rc_acuerdos_clientes')) || {};
+
+    window.addEventListener("DOMContentLoaded", () => {
+      document.getElementById('mov-fecha').value = new Date().toISOString().split('T')[0];
+      renderizarPreciosUI();
+    });
+
+    window.addEventListener("firebase-cc-ready", () => {
+      const db = window.cloudDB;
+      const { collection, onSnapshot, query, orderBy, limit } = window.firestoreMethods;
+
+      // Cargar Clientes
+      onSnapshot(collection(db, "clientes"), (snap) => {
+        clientesLista = [];
+        snap.forEach(d => clientesLista.push({ id: d.id, ...d.data() }));
+        poblarSelectsClientes();
+      });
+
+      // Cargar Patentes
+      onSnapshot(collection(db, "patentes"), (snap) => {
+        patentesLista = [];
+        snap.forEach(d => patentesLista.push({ id: d.id, ...d.data() }));
+        poblarSelectsProveedores();
+      });
+
+      // Cargar Materiales
+      onSnapshot(collection(db, "materiales"), (snap) => {
+        materialesLista = [];
+        snap.forEach(d => {
+          const dt = d.data();
+          materialesLista.push(dt.desc || dt.nombre || "Material");
+        });
+        renderizarPreciosUI();
+      });
+
+      // Escuchar Movimientos de Cuenta Corriente
+      onSnapshot(collection(db, "cuentas_corrientes"), (snap) => {
+        const cloudMovs = [];
+        snap.forEach(d => cloudMovs.push({ id: d.id, ...d.data() }));
+        if (cloudMovs.length > 0) {
+          movimientosCC = cloudMovs;
+          localStorage.setItem('rc_movimientos_cc', JSON.stringify(movimientosCC));
+          if(document.getElementById('selectClienteCC').value) cargarCuentaCorrienteCliente();
+          if(document.getElementById('selectProveedorCC').value) cargarCuentaCorrienteProveedor();
+        }
+      });
+
+      // Cargar Configuración de Precios desde la nube
+      onSnapshot(doc(db, "configuracion", "precios"), (docSnap) => {
+        if(docSnap.exists()) {
+          const data = docSnap.data();
+          if(data.preciosBase) preciosBase = data.preciosBase;
+          if(data.acuerdosClientes) acuerdosClientes = data.acuerdosClientes;
+          renderizarPreciosUI();
+        }
+      });
+
+      cargarRemitosParaImportar();
+    });
+
+    function cambiarTab(tab) {
+      ['clientes', 'proveedores', 'importador', 'precios'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        document.getElementById(`tabBtn-${t}`).className = "px-4 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-2";
+      });
+      document.getElementById(`tab-${tab}`).classList.remove('hidden');
+      document.getElementById(`tabBtn-${tab}`).className = "px-4 py-2 border-b-2 border-amber-500 text-amber-400 font-semibold flex items-center gap-2";
+
+      if(tab === 'importador') cargarRemitosParaImportar();
+      if(tab === 'precios') renderizarPreciosUI();
+    }
+
+    function poblarSelectsClientes() {
+      const sel = document.getElementById("selectClienteCC");
+      const selAcuerdo = document.getElementById("acuerdo-cliente");
+      sel.innerHTML = '<option value="">-- Elija un cliente habitual --</option>';
+      selAcuerdo.innerHTML = '<option value="">-- Seleccionar Cliente --</option>';
+
+      clientesLista.forEach(c => {
+        sel.innerHTML += `<option value="${c.razon}">${c.razon}</option>`;
+        selAcuerdo.innerHTML += `<option value="${c.razon}">${c.razon}</option>`;
+      });
+    }
+
+    function poblarSelectsProveedores() {
+      const sel = document.getElementById("selectProveedorCC");
+      sel.innerHTML = '<option value="">-- Elija transportista --</option>';
+      patentesLista.forEach(p => {
+        sel.innerHTML += `<option value="${p.patente}">${p.patente} - ${p.transportista || 'Fletero'}</option>`;
+      });
+    }
+
+    // RESOLVER PRECIO EXACTO (Base vs Acuerdo Especial)
+    function obtenerPrecioParaCliente(cliente, nombreMaterial) {
+      const mat = (nombreMaterial || '').trim();
+      // 1. Revisar si hay un acuerdo especial para ese cliente y material
+      if (acuerdosClientes[cliente] && acuerdosClientes[cliente][mat] !== undefined) {
+        return { precio: parseFloat(acuerdosClientes[cliente][mat]), esEspecial: true };
+      }
+      // 2. Buscar si coincide parcialmente con algún material base
+      for (const [k, v] of Object.entries(preciosBase)) {
+        if (mat.toLowerCase().includes(k.toLowerCase())) {
+          return { precio: parseFloat(v), esEspecial: false };
+        }
+      }
+      return { precio: 0, esEspecial: false };
+    }
+
+    // CARGAR Y VALORIZAR REMITOS PENDIENTES
+    async function cargarRemitosParaImportar() {
+      const tbody = document.getElementById("tbody-remitos-pendientes");
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-cyan-700 font-medium">Buscando remitos emitidos en Firebase...</td></tr>';
+
+      if (!window.cloudDB) return;
+      const { collection, getDocs, query, orderBy, limit } = window.firestoreMethods;
+
+      try {
+        const snap = await getDocs(query(collection(window.cloudDB, "remitos"), orderBy("creado", "desc"), limit(400)));
+        remitosNube = [];
+        snap.forEach(d => remitosNube.push({ id: d.id, ...d.data() }));
+
+        const remitosImputados = new Set(movimientosCC.map(m => String(m.remitoRef || '')));
+        const pendientes = remitosNube.filter(r => !remitosImputados.has(String(r.numero)));
+
+        document.getElementById("badge-pendientes").innerText = pendientes.length;
+
+        if (pendientes.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-emerald-700 font-bold">¡Todos los remitos ya están imputados!</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = pendientes.map((r, i) => {
+          const item = (r.items && r.items.length > 0) ? r.items[0] : { cant: 1, unidad: 'TN', desc: 'Material' };
+          const cant = parseFloat(item.cant) || 1;
+          const cliente = r.cliente?.razon || "Particular";
+          const { precio, esEspecial } = obtenerPrecioParaCliente(cliente, item.desc);
+          const subtotal = cant * precio;
+
+          return `
+            <tr class="hover:bg-slate-50 border-b border-slate-100">
+              <td class="py-2.5 px-3 font-mono font-bold text-slate-900">${r.numero}</td>
+              <td class="py-2.5 px-3 text-slate-600">${r.fecha}</td>
+              <td class="py-2.5 px-3 font-semibold text-slate-800">${cliente}</td>
+              <td class="py-2.5 px-3">${item.desc} (${item.cant} ${item.unidad})</td>
+              <td class="py-2.5 px-3">
+                <span class="mono-num font-bold text-slate-800">$ ${precio.toLocaleString('es-AR')}</span>
+                ${esEspecial ? '<span class="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold">Pactado</span>' : '<span class="ml-1 text-[10px] text-slate-400">Base</span>'}
+              </td>
+              <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900">$ ${subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+              <td class="py-2.5 px-3 text-center">
+                <button onclick="imputarRemitoIndividual(${i})" class="bg-slate-800 hover:bg-slate-700 text-white font-bold px-3 py-1 rounded text-xs shadow-sm">
+                  Imputar
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+      } catch (err) {
+        console.error("Error al obtener remitos:", err);
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-rose-600">Error de conexión al cargar remitos.</td></tr>';
+      }
+    }
+
+    // IMPUTACIÓN MASIVA EN 1 CLIC (LOTE DE HASTA 300 REMITOS)
+    async function imputarTodosLosRemitosPendientes() {
+      const remitosImputados = new Set(movimientosCC.map(m => String(m.remitoRef || '')));
+      const pendientes = remitosNube.filter(r => !remitosImputados.has(String(r.numero)));
+
+      if (pendientes.length === 0) return alert("No hay remitos pendientes para procesar.");
+      if (!confirm(`¿Deseas procesar e imputar ${pendientes.length} remitos automáticamente con las tarifas vigentes?`)) return;
+
+      const db = window.cloudDB;
+      const { collection, doc, writeBatch } = window.firestoreMethods;
+      const batch = writeBatch(db);
+
+      let totalProcesados = 0;
+
+      pendientes.forEach(r => {
+        const item = (r.items && r.items.length > 0) ? r.items[0] : { cant: 1, unidad: 'TN', desc: 'Material' };
+        const cant = parseFloat(item.cant) || 1;
+        const cliente = r.cliente?.razon || "Particular";
+        const { precio } = obtenerPrecioParaCliente(cliente, item.desc);
+        const subtotal = cant * precio;
+
+        const nuevoDocRef = doc(collection(db, "cuentas_corrientes"));
+        batch.set(nuevoDocRef, {
+          entidadTipo: 'CLIENTE',
+          entidadNombre: cliente,
+          fecha: r.fecha,
+          comprobante: `Remito Nº ${r.numero}`,
+          remitoRef: String(r.numero),
+          concepto: `${item.desc} (${cant} ${item.unidad} @ $${precio.toLocaleString('es-AR')})`,
+          patente: r.transporte?.patente || '',
+          debito: subtotal,
+          credito: 0,
+          creado: new Date().toISOString()
+        });
+
+        totalProcesados++;
+      });
+
+      try {
+        await batch.commit();
+        alert(`¡Se imputaron ${totalProcesados} remitos exitosamente en las cuentas corrientes!`);
+        cargarRemitosParaImportar();
+      } catch (e) {
+        console.error("Error en lote:", e);
+        alert("Ocurrió un error al procesar el lote masivo.");
+      }
+    }
+
+    async function imputarRemitoIndividual(index) {
+      const remitosImputados = new Set(movimientosCC.map(m => String(m.remitoRef || '')));
+      const pendientes = remitosNube.filter(r => !remitosImputados.has(String(r.numero)));
+      const r = pendientes[index];
+
+      const item = (r.items && r.items.length > 0) ? r.items[0] : { cant: 1, unidad: 'TN', desc: 'Material' };
+      const cant = parseFloat(item.cant) || 1;
+      const cliente = r.cliente?.razon || "Particular";
+      const { precio } = obtenerPrecioParaCliente(cliente, item.desc);
+      const subtotal = cant * precio;
+
+      const db = window.cloudDB;
+      await window.firestoreMethods.addDoc(window.firestoreMethods.collection(db, "cuentas_corrientes"), {
+        entidadTipo: 'CLIENTE',
+        entidadNombre: cliente,
+        fecha: r.fecha,
+        comprobante: `Remito Nº ${r.numero}`,
+        remitoRef: String(r.numero),
+        concepto: `${item.desc} (${cant} ${item.unidad} @ $${precio.toLocaleString('es-AR')})`,
+        patente: r.transporte?.patente || '',
+        debito: subtotal,
+        credito: 0,
+        creado: new Date().toISOString()
+      });
+
+      cargarRemitosParaImportar();
+    }
+
+    // GESTIÓN DE PRECIOS BASE Y ACUERDOS
+    function renderizarPreciosUI() {
+      // 1. Precios Base
+      const listaDiv = document.getElementById("lista-precios-base");
+      listaDiv.innerHTML = "";
+      Object.keys(preciosBase).forEach(mat => {
+        listaDiv.innerHTML += `
+          <div class="flex items-center justify-between border-b pb-2">
+            <span class="font-bold text-slate-700">${mat}</span>
+            <div class="flex items-center gap-1">
+              <span class="text-slate-400 font-bold">$</span>
+              <input type="number" id="base-mat-${mat}" value="${preciosBase[mat]}" class="border rounded px-2 py-1 w-28 mono-num font-bold text-right">
+            </div>
+          </div>
+        `;
+      });
+
+      // 2. Selects Acuerdo
+      const selMatAcuerdo = document.getElementById("acuerdo-material");
+      selMatAcuerdo.innerHTML = '<option value="">-- Material --</option>';
+      Object.keys(preciosBase).forEach(m => {
+        selMatAcuerdo.innerHTML += `<option value="${m}">${m}</option>`;
+      });
+
+      // 3. Tabla Acuerdos
+      const tbodyAcuerdos = document.getElementById("tbody-acuerdos");
+      tbodyAcuerdos.innerHTML = "";
+      let hayAcuerdos = false;
+
+      for (const [cli, mats] of Object.entries(acuerdosClientes)) {
+        for (const [mat, val] of Object.entries(mats)) {
+          hayAcuerdos = true;
+          tbodyAcuerdos.innerHTML += `
+            <tr class="hover:bg-slate-50 border-b">
+              <td class="p-2 font-bold text-slate-800">${cli}</td>
+              <td class="p-2">${mat}</td>
+              <td class="p-2 text-right mono-num font-bold text-amber-700">$ ${parseFloat(val).toLocaleString('es-AR')}</td>
+              <td class="p-2 text-center">
+                <button onclick="eliminarAcuerdo('${cli}', '${mat}')" class="text-slate-400 hover:text-rose-600 font-bold">×</button>
+              </td>
+            </tr>
+          `;
+        }
+      }
+
+      if (!hayAcuerdos) {
+        tbodyAcuerdos.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-slate-400">Sin acuerdos especiales creados.</td></tr>';
+      }
+    }
+
+    async function guardarPreciosBase() {
+      Object.keys(preciosBase).forEach(mat => {
+        const val = parseFloat(document.getElementById(`base-mat-${mat}`).value) || 0;
+        preciosBase[mat] = val;
+      });
+
+      localStorage.setItem('rc_precios_base', JSON.stringify(preciosBase));
+
+      if (window.cloudDB) {
+        const { doc, setDoc } = window.firestoreMethods;
+        await setDoc(doc(window.cloudDB, "configuracion", "precios"), { preciosBase, acuerdosClientes }, { merge: true });
+      }
+
+      alert("Precios base actualizados con éxito.");
+    }
+
+    async function agregarAcuerdoCliente() {
+      const cli = document.getElementById("acuerdo-cliente").value;
+      const mat = document.getElementById("acuerdo-material").value;
+      const precio = parseFloat(document.getElementById("acuerdo-precio").value) || 0;
+
+      if (!cli || !mat || precio <= 0) return alert("Completa cliente, material y precio.");
+
+      if (!acuerdosClientes[cli]) acuerdosClientes[cli] = {};
+      acuerdosClientes[cli][mat] = precio;
+
+      localStorage.setItem('rc_acuerdos_clientes', JSON.stringify(acuerdosClientes));
+
+      if (window.cloudDB) {
+        const { doc, setDoc } = window.firestoreMethods;
+        await setDoc(doc(window.cloudDB, "configuracion", "precios"), { preciosBase, acuerdosClientes }, { merge: true });
+      }
+
+      document.getElementById("acuerdo-precio").value = "";
+      renderizarPreciosUI();
+    }
+
+    async function eliminarAcuerdo(cli, mat) {
+      if (!confirm(`¿Eliminar precio especial para ${cli} en ${mat}?`)) return;
+      delete acuerdosClientes[cli][mat];
+      if (Object.keys(acuerdosClientes[cli]).length === 0) delete acuerdosClientes[cli];
+
+      localStorage.setItem('rc_acuerdos_clientes', JSON.stringify(acuerdosClientes));
+
+      if (window.cloudDB) {
+        const { doc, setDoc } = window.firestoreMethods;
+        await setDoc(doc(window.cloudDB, "configuracion", "precios"), { preciosBase, acuerdosClientes }, { merge: true });
+      }
+
+      renderizarPreciosUI();
+    }
+
+    // CARGAR CUENTA CORRIENTE CLIENTE
+    function cargarCuentaCorrienteCliente() {
+      const clienteNombre = document.getElementById("selectClienteCC").value;
+      const tbody = document.getElementById("tbody-movimientos-clientes");
+
+      if (!clienteNombre) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-400">Seleccione un cliente.</td></tr>';
+        document.getElementById("metricCliDebito").innerText = "$ 0.00";
+        document.getElementById("metricCliSaldo").innerText = "$ 0.00";
+        return;
+      }
+
+      const movs = movimientosCC
+        .filter(m => m.entidadTipo === 'CLIENTE' && (m.entidadNombre || '').toLowerCase() === clienteNombre.toLowerCase())
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+      if (movs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-400">No hay movimientos para este cliente.</td></tr>';
+        document.getElementById("metricCliDebito").innerText = "$ 0.00";
+        document.getElementById("metricCliSaldo").innerText = "$ 0.00";
+        return;
+      }
+
+      let saldo = 0;
+      let totalDebito = 0;
+      tbody.innerHTML = "";
+
+      movs.forEach(m => {
+        const deb = parseFloat(m.debito) || 0;
+        const cred = parseFloat(m.credito) || 0;
+        saldo += (deb - cred);
+        totalDebito += deb;
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+            <td class="py-2.5 px-4 font-semibold text-slate-600">${m.fecha}</td>
+            <td class="py-2.5 px-4 font-mono font-bold text-slate-900">${m.comprobante}</td>
+            <td class="py-2.5 px-4 text-slate-800">${m.concepto}</td>
+            <td class="py-2.5 px-4 font-mono uppercase text-slate-600">${m.patente || '-'}</td>
+            <td class="py-2.5 px-4 text-right mono-num font-bold text-slate-900">${deb > 0 ? '$ ' + deb.toLocaleString('es-AR', {minimumFractionDigits: 2}) : '-'}</td>
+            <td class="py-2.5 px-4 text-right mono-num font-bold text-emerald-600">${cred > 0 ? '$ ' + cred.toLocaleString('es-AR', {minimumFractionDigits: 2}) : '-'}</td>
+            <td class="py-2.5 px-4 text-right mono-num font-black ${saldo > 0 ? 'text-rose-600' : 'text-emerald-700'}">$ ${saldo.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            <td class="py-2.5 px-4 text-center">
+              <button onclick="eliminarMovimiento('${m.id}')" class="text-slate-400 hover:text-rose-600 font-bold">🗑️</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      document.getElementById("metricCliDebito").innerText = "$ " + totalDebito.toLocaleString('es-AR', {minimumFractionDigits: 2});
+      document.getElementById("metricCliSaldo").innerText = "$ " + saldo.toLocaleString('es-AR', {minimumFractionDigits: 2});
+    }
+
+    // CARGAR CUENTA CORRIENTE PROVEEDOR
+    function cargarCuentaCorrienteProveedor() {
+      const patente = document.getElementById("selectProveedorCC").value;
+      const tbody = document.getElementById("tbody-movimientos-proveedores");
+
+      if (!patente) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-400">Seleccione un transportista.</td></tr>';
+        document.getElementById("metricProvCredito").innerText = "$ 0.00";
+        document.getElementById("metricProvSaldo").innerText = "$ 0.00";
+        return;
+      }
+
+      const movs = movimientosCC
+        .filter(m => m.entidadTipo === 'PROVEEDOR' && (m.patente || '').toLowerCase() === patente.toLowerCase())
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+      if (movs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-400">No hay viajes ni liquidaciones para este transportista.</td></tr>';
+        document.getElementById("metricProvCredito").innerText = "$ 0.00";
+        document.getElementById("metricProvSaldo").innerText = "$ 0.00";
+        return;
+      }
+
+      let saldo = 0;
+      let totalCredito = 0;
+      tbody.innerHTML = "";
+
+      movs.forEach(m => {
+        const cred = parseFloat(m.credito) || 0;
+        const deb = parseFloat(m.debito) || 0;
+        saldo += (cred - deb);
+        totalCredito += cred;
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+            <td class="py-2.5 px-4 font-semibold text-slate-600">${m.fecha}</td>
+            <td class="py-2.5 px-4 font-mono font-bold text-slate-900">${m.comprobante}</td>
+            <td class="py-2.5 px-4 text-slate-800">${m.concepto}</td>
+            <td class="py-2.5 px-4 font-mono uppercase text-slate-600">${m.patente}</td>
+            <td class="py-2.5 px-4 text-right mono-num font-bold text-cyan-700">${cred > 0 ? '$ ' + cred.toLocaleString('es-AR', {minimumFractionDigits: 2}) : '-'}</td>
+            <td class="py-2.5 px-4 text-right mono-num font-bold text-emerald-600">${deb > 0 ? '$ ' + deb.toLocaleString('es-AR', {minimumFractionDigits: 2}) : '-'}</td>
+            <td class="py-2.5 px-4 text-right mono-num font-black text-slate-900">$ ${saldo.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            <td class="py-2.5 px-4 text-center">
+              <button onclick="eliminarMovimiento('${m.id}')" class="text-slate-400 hover:text-rose-600 font-bold">🗑️</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      document.getElementById("metricProvCredito").innerText = "$ " + totalCredito.toLocaleString('es-AR', {minimumFractionDigits: 2});
+      document.getElementById("metricProvSaldo").innerText = "$ " + saldo.toLocaleString('es-AR', {minimumFractionDigits: 2});
+    }
+
+    // REGISTRAR MOVIMIENTO MANUAL
+    function abrirModalNuevoMovimiento(tipo) {
+      document.getElementById("mov-tipo-entidad").value = tipo;
+      document.getElementById("modal-mov-titulo").innerText = tipo === 'CLIENTE' ? "Registrar Cobranza" : "Registrar Pago Fletero";
+      document.getElementById("modal-movimiento").classList.remove("hidden");
+    }
+
+    function cerrarModalMovimiento() {
+      document.getElementById("modal-movimiento").classList.add("hidden");
+    }
+
+    async function guardarMovimientoManual() {
+      const tipoEntidad = document.getElementById("mov-tipo-entidad").value;
+      const fecha = document.getElementById("mov-fecha").value;
+      const comp = document.getElementById("mov-tipo-comp").value;
+      const num = document.getElementById("mov-numero").value.trim();
+      const medio = document.getElementById("mov-medio").value;
+      const concepto = document.getElementById("mov-concepto").value.trim();
+      const importe = parseFloat(document.getElementById("mov-importe").value) || 0;
+      const naturaleza = document.getElementById("mov-naturaleza").value;
+
+      let nombreEntidad = "";
+      let patente = "";
+
+      if (tipoEntidad === 'CLIENTE') {
+        nombreEntidad = document.getElementById("selectClienteCC").value;
+        if (!nombreEntidad) return alert("Selecciona un cliente.");
+      } else {
+        patente = document.getElementById("selectProveedorCC").value;
+        nombreEntidad = patente;
+        if (!patente) return alert("Selecciona un transportista.");
+      }
+
+      const debito = naturaleza === 'DEBE' ? importe : 0;
+      const credito = naturaleza === 'HABER' ? importe : 0;
+
+      const movimiento = {
+        entidadTipo: tipoEntidad,
+        entidadNombre: nombreEntidad,
+        fecha: fecha,
+        comprobante: `${comp} ${num ? 'Nº ' + num : ''} (${medio})`,
+        concepto: concepto,
+        patente: patente,
+        debito: debito,
+        credito: credito,
+        creado: new Date().toISOString()
+      };
+
+      if (window.cloudDB) {
+        await window.firestoreMethods.addDoc(window.firestoreMethods.collection(window.cloudDB, "cuentas_corrientes"), movimiento);
+      }
+
+      cerrarModalMovimiento();
+      if (tipoEntidad === 'CLIENTE') cargarCuentaCorrienteCliente();
+      else cargarCuentaCorrienteProveedor();
+    }
+
+    async function eliminarMovimiento(id) {
+      if (!confirm("¿Deseas eliminar este registro?")) return;
+      if (window.cloudDB && id) {
+        await window.firestoreMethods.deleteDoc(window.firestoreMethods.doc(window.cloudDB, "cuentas_corrientes", id));
+      }
+    }
+
+    // EXPORTACIÓN A PDF
+    function generarResumenPDF(tipo) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const entidad = tipo === 'CLIENTE' ? document.getElementById("selectClienteCC").value : document.getElementById("selectProveedorCC").value;
+      if (!entidad) return alert("Selecciona una cuenta.");
+
+      const movs = movimientosCC
+        .filter(m => m.entidadTipo === tipo && (tipo === 'CLIENTE' ? m.entidadNombre === entidad : m.patente === entidad))
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("Ranelagh Construcciones S.A.", 14, 18);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Estado de Cuenta - ${tipo}: ${entidad}`, 14, 25);
+      doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString('es-AR')}`, 14, 31);
+      doc.line(14, 34, 196, 34);
+
+      let y = 42;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("Fecha", 14, y);
+      doc.text("Comprobante", 38, y);
+      doc.text("Concepto", 85, y);
+      doc.text("Débito", 145, y, { align: "right" });
+      doc.text("Crédito", 170, y, { align: "right" });
+      doc.text("Saldo", 195, y, { align: "right" });
+      doc.line(14, y + 2, 196, y + 2);
+
+      y += 8;
+      let saldo = 0;
+      doc.setFont("helvetica", "normal");
+
+      movs.forEach(m => {
+        if (y > 275) { doc.addPage(); y = 20; }
+        const deb = parseFloat(m.debito) || 0;
+        const cred = parseFloat(m.credito) || 0;
+        saldo += (deb - cred);
+
+        doc.text(m.fecha, 14, y);
+        doc.text(doc.splitTextToSize(m.comprobante, 42), 38, y);
+        doc.text(doc.splitTextToSize(m.concepto, 55), 85, y);
+        doc.text(deb > 0 ? deb.toLocaleString('es-AR', {minimumFractionDigits: 2}) : "-", 145, y, { align: "right" });
+        doc.text(cred > 0 ? cred.toLocaleString('es-AR', {minimumFractionDigits: 2}) : "-", 170, y, { align: "right" });
+        doc.text(saldo.toLocaleString('es-AR', {minimumFractionDigits: 2}), 195, y, { align: "right" });
+        y += 8;
+      });
+
+      doc.save(`Resumen_CC_${entidad}_${new Date().toISOString().slice(0,10)}.pdf`);
+    }
+
+    // EXPORTACIÓN A EXCEL
+    function exportarExcelCC(tipo) {
+      const entidad = tipo === 'CLIENTE' ? document.getElementById("selectClienteCC").value : document.getElementById("selectProveedorCC").value;
+      if (!entidad) return alert("Selecciona una cuenta.");
+
+      const movs = movimientosCC
+        .filter(m => m.entidadTipo === tipo && (tipo === 'CLIENTE' ? m.entidadNombre === entidad : m.patente === entidad))
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+      let csv = "\uFEFFFECHA;COMPROBANTE;CONCEPTO;PATENTE;DEBITO;CREDITO;SALDO\r\n";
+      let saldo = 0;
+
+      movs.forEach(m => {
+        const deb = parseFloat(m.debito) || 0;
+        const cred = parseFloat(m.credito) || 0;
+        saldo += (deb - cred);
+        csv += `"${m.fecha}";"${m.comprobante}";"${m.concepto}";"${m.patente || ''}";"${deb}";"${cred}";"${saldo}"\r\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `CC_${entidad}_${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+    }
+  </script>
+</body>
+</html>
